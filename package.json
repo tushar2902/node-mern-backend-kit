@@ -8,11 +8,12 @@
     "start": "node app",
     "lint": "eslint config/ controllers/ models/ routes/ schema-validation/ app.js --fix --cache",
     "prettier": "prettier --config ./.prettierrc \"*/**/*{.js,.json,.html}\" --write",
-    "format": "pnpm run prettier && pnpm run lint",
+    "format": "npm run prettier && npm run lint",
     "migrate:up": "npx sequelize-cli db:migrate",
     "migrate:undo": "npx sequelize-cli db:migrate:undo",
     "seed:up": "npx sequelize-cli db:seed:all",
-    "seed:undo": "npx sequelize-cli db:seed:undo"
+    "seed:undo": "npx sequelize-cli db:seed:undo",
+    "prepare": "husky"
   },
   "husky": {
     "hooks": {
