@@ -1,0 +1,275 @@
+paths:
+  /admin/sub-admin:
+    get:
+      tags:
+        - "Admin"
+      summary: "Get Admin"
+      description: "Get Admin"
+      operationId: "getAdmin"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "query"
+          name: "search"
+          schema:
+            type: string
+        - in: "query"
+          name: "start"
+          schema:
+            type: integer
+        - in: "query"
+          name: "limit"
+          schema:
+            type: integer
+      security:
+        - bearerAuth: [ ]
+      responses:
+        "200":
+          description: "get Admin"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"
+    post:
+      tags:
+        - "Admin"
+      summary: "Create Admin"
+      operationId: "createAdmin"
+      requestBody:
+        description: Payload is required
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/createAdmin"
+        required: true
+      produces:
+        - "application/json"
+      parameters: []
+      security:
+        - bearerAuth: [ ]
+      responses:
+        "200":
+          description: "Admin Created successfully"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"
+  /admin/sub-admin/{id}:
+    get:
+      tags:
+        - "Admin"
+      summary: "Get Admin by id"
+      description: "Get Admin by id"
+      operationId: "getAdminById"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "path"
+          name: "id"
+          schema:
+            type: integer
+      security:
+        - bearerAuth: [ ]
+      responses:
+        "200":
+          description: "get Admin"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"  
+    put:
+      tags:
+        - "Admin"
+      summary: "Update Admin"
+      description: "Update Admin"
+      operationId: "putUpdateAdmin"
+      requestBody:
+        description: Payload is required
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/updateAdmin"
+        required: true
+      produces:
+        - "application/json"
+      parameters:
+        - in: "path"
+          name: "id"
+          schema:
+            type: integer
+      security:
+        - bearerAuth: [ ]
+      responses:
+        "200":
+          description: "Admin Updated Successfully"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"
+    delete:
+      tags:
+        - "Admin"
+      summary: "Delete Admin"
+      operationId: deleteAdmin
+      produces:
+        - "application/json"
+      parameters:
+        - in: "path"
+          name: "id"
+          schema:
+            type: integer
+      security:
+        - bearerAuth: [ ]
+      responses:
+        "200":
+          description: "Admin Deleted successfully"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"
+    patch:
+      tags:
+        - "Admin"
+      summary: "patch Admin Status"
+      operationId: patchAdminStatus
+      produces:
+        - "application/json"
+      parameters:
+        - in: "path"
+          name: "id"
+          schema:
+            type: integer
+      security:
+        - bearerAuth: [ ]
+      responses:
+        "200":
+          description: "Status Updated successfully"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"
+  /admin/sub-admin/change-password/{id}:
+    patch:
+      tags:
+        - "Admin"
+      summary: "change password"
+      operationId: "changePassword"
+      requestBody:
+        description: change password
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/change-password"
+        required: true
+      produces:
+        - "application/json" 
+      parameters:
+        - in: "path"
+          name: "id"
+          schema:
+            type: integer
+      security:
+        - bearerAuth: [ ]
+      responses:
+        "200":
+          description: "Password saved successfully"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"
+components:
+  schemas:
+    createAdmin:
+      type: object
+      properties:
+        firstName:
+          type: string
+          description: Enter First Name
+        lastName:
+          type: string
+          description: Enter Last Name                
+        email:
+          type: string
+          description: Enter Email
+        password:
+          type: string
+          description: Enter Password
+        accessManagement:
+          type: array
+          items:
+            properties:
+              type:
+                type: string
+                description: enter type
+              view:
+                type: boolean
+                description: enter view
+              add:
+                type: boolean
+                description: enter add
+              edit:
+                type: boolean
+                description: enter edit
+              remove:
+                type: boolean
+                description: enter remove
+      required:
+      - firstName
+      - lastName
+      - email
+      - password
+      - accessManagement
+    updateAdmin:
+      type: object
+      properties:
+        firstName:
+          type: string
+          description: Enter First Name
+        lastName:
+          type: string
+          description: Enter Last Name                
+        email:
+          type: string
+          description: Enter Email
+        accessManagement:
+          type: array
+          items:
+            properties:
+              id:
+                type: integer
+                description: enter Id
+              type:
+                type: string
+                description: enter type
+              view:
+                type: boolean
+                description: enter view
+              add:
+                type: boolean
+                description: enter add
+              edit:
+                type: boolean
+                description: enter edit
+              remove:
+                type: boolean
+                description: enter remove
+      required:
+      - firstName
+      - lastName
+      - email
+      - accessManagement
+    change-password:
+      type: object
+      properties:
+        password:
+            type: string
+            description: enter password
+        confirmPassword:
+          type: string
+          description: enter confirm password
+      required:
+        - password
+        - confirmPassword
+      
+       
+     

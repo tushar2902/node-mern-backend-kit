@@ -1,0 +1,76 @@
+paths:
+  /shared/upload:
+    post :
+      tags:
+        - "Shared"
+      summary: "Upload media"
+      description: ""
+      operationId: "uploadMedia"
+      consumes:
+        - "multipart/form-data"
+      produces:
+        - "application/json"
+      parameters: 
+        - in: formData
+          name: file
+          schema:
+            type: file
+          description: The file to upload.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "File uploaded successfully"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"      
+  /shared/signed-url:
+      get :
+        tags:
+          - "Shared"
+        summary: "Signed url"
+        description: ""
+        operationId: "generateUrl"
+        produces:
+          - "application/json"
+        parameters: 
+          - in: query
+            name: fileName
+            schema:
+                type: string
+            description: file name
+            required: true
+        security:
+          - bearerAuth: []
+        responses:
+          "200":
+            description: "signed url"
+          "400":
+            description: "Invalid Request"
+          "500":
+            description: "Internal Server Error"
+  /shared/pincode/{pincode}:
+    get:
+      tags:
+        - "Shared"
+      summary: "Get pincode"
+      description: ""
+      operationId: "getPincode"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "path"
+          name: "pincode"
+          schema:
+            type: string
+          description: "Pincode"   
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "pinocde details"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"                   

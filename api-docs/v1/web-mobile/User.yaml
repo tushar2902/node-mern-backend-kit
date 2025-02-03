@@ -1,0 +1,294 @@
+paths:
+  /user/login:
+    post:
+      tags:
+        - "User"
+      summary: "Login with password"
+      description: ""
+      operationId: "loginWithPassword"
+      requestBody:
+        description:  Login with password
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/password-login"
+        required: true
+      produces:
+        - "application/json"
+      parameters: []
+      responses:
+        "200":
+          description: "Logged in successfully"
+        "400":
+          description: "Invalid Request | No user with this Email or Mobile number"
+        "500":
+          description: "Internal Server Error"
+  /user/sign-up:
+    post:
+      tags:
+        - "User"
+      summary: "New User sign up"
+      description: ""
+      operationId: "newUserSignUp"
+      requestBody:
+        description: 
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/sign-up"
+        required: true
+      produces:
+        - "application/json"
+      parameters: []
+      responses:
+        "200":
+          description: "Your account has been created successfully"
+        "400":
+          description: "Account is blocked | Email or mobile number already taken"
+        "500":
+          description: "Internal Server Error"
+  /user/send-otp:
+    post:
+      tags:
+        - "User"
+      summary: "send otp"
+      description: ""
+      operationId: "sendOtp"
+      requestBody:
+        description:  send otp
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/send-otp"
+        required: true
+      produces:
+        - "application/json"
+      parameters: []
+      responses:
+        "200":
+          description: "An OTP has been sent"
+        "400":
+          description: "Invalid Request | No user with this Email or mobile number"
+        "500":
+          description: "Internal Server Error"
+  /user/verify-otp:
+    patch:
+      tags:
+        - "User"
+      summary: "Verify otp"
+      description: ""
+      operationId: "verifyOtp"
+      requestBody:
+        description: verify otp
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/verify-otp"
+        required: true
+      produces:
+        - "application/json"
+      parameters: [ ]
+      responses:
+        "200":
+          description: "OTP verified successfully"
+        "400":
+          description: "Invalid Request or Incorrect OTP"
+        "500":
+          description: "Internal Server Error"
+  /user:
+    put:
+      tags:
+        - "User"
+      summary: "update profile"
+      description: ""
+      operationId: "update profile"
+      requestBody:
+        description: Payload required
+        content:
+          "application/json":
+            schema:
+              $ref: "#/components/schemas/profile-update"
+        required: true
+      produces:
+        - "application/json"
+      parameters: []  
+      security:
+        - bearerAuth: [ ]
+      responses:
+        "200":
+          description: "user updated successfully"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"
+    get:
+     tags:
+       - "User"
+     summary: "get profile by id"
+     description: ""
+     operationId: "get user profile"
+     produces:
+       - "application/json"
+     parameters: [ ]
+     security:
+       - bearerAuth: [ ]
+     responses:
+       "200":
+         description: "get user profile "
+       "400":
+         description: "Invalid Request"
+       "500":
+         description: "Internal Server Error"
+  /user/close-account:
+    patch:
+      tags:
+        - "User"
+      summary: "Delete User Account"
+      operationId: deleteUserAccount
+      produces:
+        - "application/json"
+      security:
+        - bearerAuth: [ ]
+      responses:
+        "200":
+          description: "User Account Deleted successfully"
+        "400":
+          description: "Invalid Request"
+        "500":
+          description: "Internal Server Error"
+
+components:
+  schemas:
+    send-otp:
+      type: object
+      properties:
+        type:
+          type: string
+          description: enter type
+          enum: ['email', 'mobileNumber']
+        countryCode:
+          type: string
+          description: enter country code
+        mobileNumber:
+          type: string
+          description: enter mobile Number
+        email:
+          type: string
+          description: enter email
+      required:
+        - type
+    verify-otp:
+      type: object
+      properties:
+        type:
+          type: string
+          description: enter type
+          enum: ['email', 'mobileNumber']
+        countryCode:
+          type: string
+          description: enter country code
+        mobileNumber:
+          type: string
+          description: enter mobile Number
+        email:
+          type: string
+          description: enter email
+        tempOtp:
+          type: integer
+          description: enter otp
+      required:
+        - tempOtp
+        - type
+    password-login:
+      type: object
+      properties:
+        inputData:
+          type: string
+          description: enter email address or mobile number
+        password:
+          type: string
+          description: enter password
+      required:
+        - inputData
+        - password
+    sign-up:
+      type: object
+      properties:
+        countryCode:
+          type: string
+          description: enter country code
+        mobileNumber:
+          type: string
+          description: enter mobile Number
+        email:
+          type: string
+          description: enter email address
+        firstName:
+          type: string
+          description: enter first name        
+        lastName:
+          type: string
+          description: enter last name   
+    create-password:
+      type: object
+      properties:
+        password:
+            type: string
+            description: enter password
+        confirmPassword:
+          type: string
+          description: enter confirm password
+      required:
+        - password
+        - confirmPassword
+    change-password:
+      type: object
+      properties:
+        newPassword:
+            type: string
+            description: enter new password
+        currentPassword:
+            type: string
+            description: enter current password
+        confirmPassword:
+          type: string
+          description: enter confirm password
+      required:
+        - password
+        - confirmPassword
+    profile-update:
+      type: object
+      properties:
+        countryCode:
+          type: string
+          description: enter country code
+        mobileNumber:
+          type: string
+          description: enter mobile Number
+        email:
+          type: string
+          description: enter email address
+        firstName:
+          type: string
+          description: enter first name        
+        lastName:
+          type: string
+          description: enter last name
+        dateOfBirth:
+          type: string
+          description: enter Date of Birth 
+        heading:
+          type: string
+          description: enter heading
+        pincode:
+          type: string
+          description: enter pincode
+        countryName:
+          type: string
+          description: enter country name    
+        state:
+          type: string
+          description: enter state
+        city:
+          type: string
+          description: enter city
