@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const sequelize = require('sequelize');
 const { User } = require('..');
 const {
   usersRoles,
@@ -9,8 +8,6 @@ const {
   defaultStatus,
   errorMessage,
 } = require('../../config/options');
-
-const { Op } = sequelize;
 
 const hasRole = (user, roles) => {
   if (roles && roles.length) {
@@ -32,22 +29,20 @@ const verifyJwt = async (token, roles, force) => {
       };
     }
     if (jwtPayload && jwtPayload.id) {
-      const existingUser = await User.findOne({
-        where: {
-          id: jwtPayload.id,
-          status: { [Op.notIn]: [defaultStatus.DELETED] },
+      const existingUser = await User.findOne(
+        {
+          _id: jwtPayload.id,
+          status: { $nin: [defaultStatus.DELETED] },
         },
-        attributes: {
-          exclude: [
-            'tempOtp',
-            'tempOtpExpiresAt',
-            'lastSignInAt',
-            'currentSignInIpAddress',
-            'createdAt',
-            'updatedAt',
-          ],
-        },
-      });
+        {
+          tempOtp: 0,
+          tempOtpExpiresAt: 0,
+          lastSignInAt: 0,
+          currentSignInIpAddress: 0,
+          createdAt: 0,
+          updatedAt: 0,
+        }
+      );
 
       if (
         existingUser &&

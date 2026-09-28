@@ -1,8 +1,7 @@
-const sequelize = require('sequelize');
 const chalk = require('chalk');
+const bcrypt = require('bcryptjs');
 
-const { User } = require('..');
-const { Op } = sequelize;
+const { User, Address } = require('..');
 
 const {
   errorMessage,
@@ -15,13 +14,51 @@ const UserHelper = require('../helpers/UserHelper');
 const options = require('../../config/options');
 const EmailHelper = require('../helpers/EmailHelper');
 const { parseMobileNumber } = require('../helpers/UtilHelper');
-const { Address } = require('../../models');
 
-exports.findAndCountAll = async (query) => await User.findAndCountAll(query);
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-exports.getUser = async (query) => await User.findOne(query);
+const normalizeWhere = (where = {}) => {
+  if (!where || typeof where !== 'object') return {};
+  const normalized = { ...where };
+  if (normalized.id && !normalized._id) {
+    normalized._id = normalized.id;
+    delete normalized.id;
+  }
+  return normalized;
+};
 
-exports.findAll = async (query) => await User.findAll(query);
+// ─── Basic Finders ──────────────────────────────────────────────────────────
+
+exports.findAndCountAll = async (query) => {
+  const { where: rawWhere = {}, limit = 10, offset = 0, select = null } = query;
+  const where = normalizeWhere(rawWhere);
+  const [data, count] = await Promise.all([
+    User.find(where)
+      .select(select || '')
+      .skip(Number(offset))
+      .limit(Number(limit))
+      .sort(query.sort || { createdAt: -1 }),
+    User.countDocuments(where),
+  ]);
+  return { count, rows: data };
+};
+
+exports.getUser = async (query) => {
+  const { where: rawWhere = {}, select = null, populate = null } = query;
+  const where = normalizeWhere(rawWhere);
+  let q = User.findOne(where);
+  if (select) q = q.select(select);
+  if (populate) q = q.populate(populate);
+  return await q.exec();
+};
+
+exports.findAll = async (query) => {
+  const { where: rawWhere = {}, select = null } = query;
+  const where = normalizeWhere(rawWhere);
+  return await User.find(where).select(select || '');
+};
+
+// ─── Create ──────────────────────────────────────────────────────────────────
 
 exports.createUser = async (data) => {
   try {
@@ -36,38 +73,35 @@ exports.createUser = async (data) => {
       profilePicture: data.profilePicture || null,
       status: data.status || defaultStatus.PENDING,
       email: data.email,
-      ...(data.address && {
-        address: {
-          addressLine1: data.address.addressLine1,
-          addressLine2: data.address.addressLine2,
-          pincode: data.address.pincode,
-          city: data.address.city,
-          state: data.address.state,
-          country: data.address.country,
-          createdBy: data.address.createdBy,
-        },
-      }),
+      password: data.password ? bcrypt.hashSync(data.password, 10) : null,
     };
-    const createdUser = await User.create(
-      payload,
-      ...(data.address && {
-        include: [
-          {
-            model: Address,
-            as: 'address',
-          },
-        ],
-      })
-    );
+
+    // Create address first if provided, then link it
+    if (data.address) {
+      const newAddress = await Address.create({
+        addressLine1: data.address.addressLine1,
+        addressLine2: data.address.addressLine2,
+        pincode: data.address.pincode,
+        city: data.address.city,
+        state: data.address.state,
+        country: data.address.country,
+      });
+      payload.address = [newAddress._id];
+    }
+
+    const createdUser = await User.create(payload);
     return createdUser;
   } catch (error) {
     throw new Error(error);
   }
 };
 
+// ─── Update ──────────────────────────────────────────────────────────────────
+
 exports.updateUser = async (query, data) => {
   try {
-    const existingUser = await User.findOne(query);
+    const where = normalizeWhere(query.where);
+    const existingUser = await User.findOne(where).populate('address');
     if (!existingUser) {
       return { success: false, message: errorMessage.DOES_NOT_EXIST('User') };
     }
@@ -77,7 +111,7 @@ exports.updateUser = async (query, data) => {
     existingUser.mobileNumber = data.mobileNumber;
     existingUser.countryCode = data.countryCode;
 
-    const address = existingUser.address[0];
+    const address = existingUser.address && existingUser.address[0];
     if (address) {
       address.addressLine1 = data.addressLine1 || address.addressLine1;
       address.addressLine2 = data.addressLine2 || address.addressLine2;
@@ -100,7 +134,8 @@ exports.updateUser = async (query, data) => {
 
 exports.updateContactsDetails = async (query, data) => {
   try {
-    const existingUser = await User.findOne(query);
+    const where = normalizeWhere(query.where);
+    const existingUser = await User.findOne(where);
     if (!existingUser) {
       return { success: false, message: errorMessage.DOES_NOT_EXIST('User') };
     }
@@ -120,42 +155,34 @@ exports.patchUpdateStatus = async (existingUser, status, isDelete) => {
     existingUser.status = status;
     if (isDelete) {
       existingUser.status = defaultStatus.DELETED;
-      existingUser.mobileNumber = `${existingUser.mobileNumber}${Date.now()}'${
-        defaultStatus.DELETED
-      }'`;
-      existingUser.email = `${existingUser.email}${Date.now()}'${
-        defaultStatus.DELETED
-      }'`;
+      existingUser.mobileNumber = `${existingUser.mobileNumber}${Date.now()}'${defaultStatus.DELETED}'`;
+      existingUser.email = `${existingUser.email}${Date.now()}'${defaultStatus.DELETED}'`;
     }
-    return await existingUser.save();
+    const savedUser = await existingUser.save();
+    return {
+      success: true,
+      data: savedUser,
+      message: 'Status updated successfully',
+    };
   } catch (error) {
     throw new Error(error);
   }
 };
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
 exports.checkAndAdminLoginWithPassword = async (body) => {
-  const query = {
-    where: {
-      status: { [Op.notIn]: [defaultStatus.DELETED] },
-      email: body.email,
-      role: [usersRoles.SUPER_ADMIN, usersRoles.ADMIN],
-    },
-  };
-  const existingUser = await this.getUser(query);
+  const existingUser = await User.findOne({
+    status: { $nin: [defaultStatus.DELETED] },
+    email: body.email,
+    role: { $in: [usersRoles.SUPER_ADMIN, usersRoles.ADMIN] },
+  });
   if (!existingUser) {
-    return {
-      success: false,
-      message: errorMessage.NO_USER('data'),
-    };
+    return { success: false, message: errorMessage.NO_USER('data') };
   } else if (!existingUser.validPassword(body.password)) {
-    return {
-      success: false,
-      message: errorMessage.INVALID_CREDENTIALS,
-    };
+    return { success: false, message: errorMessage.INVALID_CREDENTIALS };
   } else if (existingUser && existingUser.status === defaultStatus.INACTIVE) {
-    return {
-      success: false,
-      message: errorMessage.USER_ACCOUNT_BLOCKED,
-    };
+    return { success: false, message: errorMessage.USER_ACCOUNT_BLOCKED };
   } else {
     existingUser.lastSignInAt = new Date();
     await existingUser.save();
@@ -163,38 +190,23 @@ exports.checkAndAdminLoginWithPassword = async (body) => {
       ...UserHelper.modifyOutputData(existingUser),
       token: existingUser.genToken(),
     };
-    return {
-      success: true,
-      message: successMessage.LOG('logged in'),
-      data,
-    };
+    return { success: true, message: successMessage.LOG('logged in'), data };
   }
 };
+
 exports.checkAndLoginWithPassword = async (body) => {
-  const query = {
-    where: {
-      status: { [Op.notIn]: [defaultStatus.DELETED] },
-      email: body.email,
-    },
-  };
-  const existingUser = await this.getUser(query);
+  const existingUser = await User.findOne({
+    status: { $nin: [defaultStatus.DELETED] },
+    email: body.email,
+  });
   if (!existingUser) {
-    return {
-      success: false,
-      message: errorMessage.NO_USER('data'),
-    };
+    return { success: false, message: errorMessage.NO_USER('data') };
   }
   if (!existingUser.validPassword(body.password)) {
-    return {
-      success: false,
-      message: errorMessage.INVALID_CREDENTIALS,
-    };
+    return { success: false, message: errorMessage.INVALID_CREDENTIALS };
   }
   if (existingUser && existingUser.status === defaultStatus.INACTIVE) {
-    return {
-      success: false,
-      message: errorMessage.USER_ACCOUNT_BLOCKED,
-    };
+    return { success: false, message: errorMessage.USER_ACCOUNT_BLOCKED };
   }
   existingUser.lastSignInAt = new Date();
   await existingUser.save();
@@ -202,79 +214,45 @@ exports.checkAndLoginWithPassword = async (body) => {
     ...UserHelper.modifyOutputData(existingUser),
     token: existingUser.genToken(),
   };
-  return {
-    success: true,
-    message: successMessage.LOG('logged in'),
-    data,
-  };
+  return { success: true, message: successMessage.LOG('logged in'), data };
 };
 
 exports.checkAndCreate = async (body) => {
-  const query = {
-    where: {
-      status: { [Op.notIn]: [defaultStatus.DELETED] },
-      [Op.or]: [
-        body.email && {
-          email: body.email,
-        },
-        body.mobileNumber && {
-          [Op.and]: {
-            mobileNumber: body.mobileNumber,
-            countryCode: body.countryCode,
-          },
-        },
-      ],
-    },
-    attributes: [
-      'id',
-      'firstName',
-      'lastName',
-      'countryCode',
-      'mobileNumber',
-      'email',
-      'profilePicture',
-      'status',
-      'lastSignInAt',
-    ],
-  };
-  const existingUser = await this.getUser(query);
+  const orConditions = [];
+  if (body.email) orConditions.push({ email: body.email });
+  if (body.mobileNumber) {
+    orConditions.push({
+      mobileNumber: body.mobileNumber,
+      countryCode: body.countryCode,
+    });
+  }
+
+  const existingUser = await User.findOne({
+    status: { $nin: [defaultStatus.DELETED] },
+    ...(orConditions.length && { $or: orConditions }),
+  }).select(
+    '_id firstName lastName countryCode mobileNumber email profilePicture status lastSignInAt'
+  );
+
   if (!existingUser) {
     const newUser = await this.createUser(body);
-    // await this.generateAndSendOtp(newUser);
-    // if (newUser.role === usersRoles.USER) {
-    //   EmailHelper.sendEmail(
-    //     {
-    //       id: newUser.id,
-    //       firstName: newUser.firstName,
-    //       lastName: newUser.lastName,
-    //       email: newUser.email,
-    //     },
-    //     emailType.EMAIL_REGISTERED_SUCCESSFULLY
-    //   );
-    // }
     const message = options.successMessage.ADD_SUCCESS_MESSAGE('User');
     let data = {
       ...UserHelper.modifyOutputData(newUser),
       token: newUser.genToken(),
     };
-    return {
-      success: true,
-      data,
-      message,
-      isNew: true,
-    };
+    return { success: true, data, message, isNew: true };
   }
   if (existingUser && existingUser.status === defaultStatus.INACTIVE) {
-    return {
-      success: false,
-      message: errorMessage.USER_ACCOUNT_BLOCKED,
-    };
+    return { success: false, message: errorMessage.USER_ACCOUNT_BLOCKED };
   }
   return {
     success: false,
     message: errorMessage.EXISTS_USER('email or phone number'),
   };
 };
+
+// ─── OTP ─────────────────────────────────────────────────────────────────────
 
 exports.generateAndSendOtp = async (existingUser, isEmail = false) => {
   const todayDate = new Date();
@@ -283,20 +261,9 @@ exports.generateAndSendOtp = async (existingUser, isEmail = false) => {
   existingUser.tempOtp = tempOtp;
   existingUser.tempOtpExpiresAt = todayDate;
   await existingUser.save();
-  if (!isEmail) {
-    // const payload = {
-    //   id: existingUser.id,
-    //   firstName: existingUser.firstName,
-    //   lastName: existingUser.lastName,
-    //   countryCode: isSecondary
-    //     ? existingUser.secondaryCountryCode
-    //     : existingUser.countryCode,
-    //   mobileNumber: existingUser.mobileNumber,
-    // };
-    // SMSHelper.sendMobileOtp(payload, tempOtp);
-  } else {
+  if (isEmail) {
     const payload = {
-      id: existingUser.id,
+      id: existingUser._id,
       firstName: existingUser.firstName,
       lastName: existingUser.lastName,
       email: existingUser.email,
@@ -305,33 +272,30 @@ exports.generateAndSendOtp = async (existingUser, isEmail = false) => {
     EmailHelper.sendEmail(payload, options.emailType.EMAIL_OTP_VERIFICATION);
   }
 };
+
 exports.checkUserAndLoginWithOtp = async (body) => {
   try {
-    const query = {
-      where: {
-        status: { [Op.notIn]: [defaultStatus.DELETED] },
-        ...(body.email && {
-          email: body.email,
-        }),
-        ...(body.mobileNumber && {
-          [Op.and]: {
-            mobileNumber: body.mobileNumber,
-            countryCode: body.countryCode,
-          },
-        }),
-      },
-    };
-    const existingUser = await this.getUser(query);
+    const orConditions = [];
+    if (body.email) orConditions.push({ email: body.email });
+    if (body.mobileNumber) {
+      orConditions.push({
+        mobileNumber: body.mobileNumber,
+        countryCode: body.countryCode,
+      });
+    }
+
+    const existingUser = await User.findOne({
+      status: { $nin: [defaultStatus.DELETED] },
+      ...(orConditions.length && { $or: orConditions }),
+    });
+
     if (!existingUser) {
       return {
         success: false,
         message: errorMessage.NO_USER('register mobile number'),
       };
     } else if (existingUser && existingUser.status === defaultStatus.INACTIVE) {
-      return {
-        success: false,
-        message: errorMessage.USER_ACCOUNT_BLOCKED,
-      };
+      return { success: false, message: errorMessage.USER_ACCOUNT_BLOCKED };
     }
     await this.generateAndSendOtp(existingUser, false);
     return {
@@ -342,26 +306,21 @@ exports.checkUserAndLoginWithOtp = async (body) => {
     throw new Error(e);
   }
 };
-exports.checkAndVerifyOtp = async (body, isEmail = false) => {
+
+exports.checkAndVerifyOtp = async (body) => {
   try {
-    const query = {
-      where: {
-        status: { [Op.notIn]: [defaultStatus.DELETED] },
-        tempOtp: body.tempOtp,
-        tempOtpExpiresAt: { [Op.gte]: new Date() },
-        ...(body.type === 'mobileNumber'
-          ? { mobileNumber: body.mobileNumber, countryCode: body.countryCode }
-          : { email: body.email }),
-      },
-      logging: true,
+    const filter = {
+      status: { $nin: [defaultStatus.DELETED] },
+      tempOtp: body.tempOtp,
+      tempOtpExpiresAt: { $gte: new Date() },
+      ...(body.type === 'mobileNumber'
+        ? { mobileNumber: body.mobileNumber, countryCode: body.countryCode }
+        : { email: body.email }),
     };
-    const existingUser = await this.getUser(query);
+
+    const existingUser = await User.findOne(filter);
     if (!existingUser) {
-      return {
-        success: false,
-        message: errorMessage.OTP_INVALID,
-        data: null,
-      };
+      return { success: false, message: errorMessage.OTP_INVALID, data: null };
     }
     existingUser.tempOtp = null;
     existingUser.lastSignInAt = new Date();
@@ -371,15 +330,14 @@ exports.checkAndVerifyOtp = async (body, isEmail = false) => {
       ...UserHelper.modifyOutputData(existingUser),
       token: existingUser.genToken(),
     };
-    return {
-      success: true,
-      message: successMessage.OTP_VERIFIED(),
-      data,
-    };
+    return { success: true, message: successMessage.OTP_VERIFIED(), data };
   } catch (e) {
     throw new Error(e);
   }
 };
+
+// ─── Profile ─────────────────────────────────────────────────────────────────
+
 exports.updateProfilePicture = async (existingUser, data) => {
   try {
     existingUser.profilePicture = data.profilePicture;
@@ -388,27 +346,18 @@ exports.updateProfilePicture = async (existingUser, data) => {
     throw new Error(e);
   }
 };
+
 exports.getUserProfile = async (id) => {
-  const query = {
-    where: {
-      id,
-      status: [defaultStatus.ACTIVE, defaultStatus.PENDING],
+  const existingUser = await User.findOne(
+    {
+      _id: id,
+      status: { $in: [defaultStatus.ACTIVE, defaultStatus.PENDING] },
     },
-    attributes: UserHelper.userAttributes(),
-    include: [
-      {
-        model: db.Address,
-        as: 'address',
-        required: false,
-      },
-    ],
-  };
-  const existingUser = await this.getUser(query);
+    UserHelper.userAttributes().join(' ')
+  ).populate('address');
+
   if (!existingUser) {
-    return {
-      success: false,
-      message: errorMessage.DOES_NOT_EXIST('User'),
-    };
+    return { success: false, message: errorMessage.DOES_NOT_EXIST('User') };
   }
   return {
     success: true,
@@ -416,6 +365,9 @@ exports.getUserProfile = async (id) => {
     message: successMessage.DETAIL_MESSAGE('user profile'),
   };
 };
+
+// ─── Bulk Create ─────────────────────────────────────────────────────────────
+
 exports.bulkCreate = async (users = []) => {
   try {
     console.log(chalk.yellow('#'), 'Bulk data of length: ', users.length);
@@ -429,43 +381,27 @@ exports.bulkCreate = async (users = []) => {
         isFromAdmin: true,
       };
       const parseNumberData = parseMobileNumber(`+${user.Mobile.toString()}`);
-      if (
-        parseNumberData &&
-        parseNumberData.possible &&
-        parseNumberData.valid
-      ) {
+      if (parseNumberData && parseNumberData.possible && parseNumberData.valid) {
         payload.mobileNumber = parseNumberData.number.significant;
         payload.countryCode = parseNumberData.countryCode.toString();
       }
       console.log(chalk.yellow('#'), 'payload', payload);
-      const query = {
-        where: {
-          status: { [Op.notIn]: [defaultStatus.DELETED] },
-          [Op.or]: [
-            payload.email && {
-              email: payload.email,
-            },
-            payload.mobileNumber && {
-              [Op.and]: {
-                mobileNumber: payload.mobileNumber,
-                countryCode: payload.countryCode,
-              },
-            },
-          ],
-        },
-        attributes: [
-          'id',
-          'firstName',
-          'lastName',
-          'countryCode',
-          'mobileNumber',
-          'email',
-          'profilePicture',
-          'status',
-          'lastSignInAt',
-        ],
-      };
-      const existingUser = await this.getUser(query);
+
+      const orConditions = [];
+      if (payload.email) orConditions.push({ email: payload.email });
+      if (payload.mobileNumber) {
+        orConditions.push({
+          mobileNumber: payload.mobileNumber,
+          countryCode: payload.countryCode,
+        });
+      }
+      const existingUser = await User.findOne({
+        status: { $nin: [defaultStatus.DELETED] },
+        ...(orConditions.length && { $or: orConditions }),
+      }).select(
+        '_id firstName lastName countryCode mobileNumber email profilePicture status lastSignInAt'
+      );
+
       if (!existingUser) {
         const newUser = await this.createUser(payload);
         console.log(

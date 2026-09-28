@@ -1,51 +1,41 @@
+const mongoose = require('mongoose');
+
 const OPTIONS = require('../config/options');
 
-module.exports = (sequelize, DataTypes) => {
-  const Address = sequelize.define(
-    'Address',
-    {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: DataTypes.INTEGER,
-      },
-      addressLine1: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      addressLine2: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      pincode: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      city: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      state: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      country: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: OPTIONS.defaultCountry,
-      },
+const addressSchema = new mongoose.Schema(
+  {
+    addressLine1: {
+      type: String,
+      required: true,
     },
-    {
-      timestamps: true,
-      freezeTableName: true,
-    }
-  );
-  Address.associate = (models) => {
-    Address.hasMany(models.UserAddress, {
-      foreignKey: 'addressId',
-      as: 'addressUsers',
-    });
-  };
-  return Address;
-};
+    addressLine2: {
+      type: String,
+      default: null,
+    },
+    pincode: {
+      type: String,
+      required: true,
+    },
+    city: {
+      type: String,
+      required: true,
+    },
+    state: {
+      type: String,
+      required: true,
+    },
+    country: {
+      type: String,
+      required: true,
+      default: OPTIONS.defaultCountry,
+    },
+  },
+  {
+    timestamps: true,
+    collection: 'Address',
+  }
+);
+
+const Address = mongoose.model('Address', addressSchema);
+
+module.exports = Address;

@@ -121,9 +121,6 @@ exports.putUserProfile = async (req, res) => {
       where: {
         id,
       },
-      attributes: {
-        exclude: ['tempOtp', 'tempOtpExpiresAt', 'password', 'role'],
-      },
     };
     const { success, message, data } = await UserRepository.updateUser(
       query,

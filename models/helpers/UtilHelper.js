@@ -1,5 +1,5 @@
 const _ = require('lodash');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { parsePhoneNumber } = require('awesome-phonenumber');
 
 exports.genRes = (code, payload, type, noWrapPayload) => {

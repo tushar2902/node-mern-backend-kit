@@ -1,8 +1,5 @@
 const _ = require('lodash');
-const sequelize = require('sequelize');
 const { User } = require('..');
-
-const { Op } = sequelize;
 
 const generateUsername = (proposedName) =>
   (proposedName += Math.floor(Math.random() * 100 + 1));
@@ -13,8 +10,9 @@ const generateUniqueUsername = async (proposedName) => {
   }
   try {
     proposedName = _.replace(proposedName, /\s+/g, '');
-    const userCount = await User.count({
-      where: { userName: { [Op.iLike]: `%${proposedName}%` } },
+    // Replace Sequelize Op.iLike with MongoDB case-insensitive regex
+    const userCount = await User.countDocuments({
+      userName: { $regex: proposedName, $options: 'i' },
     });
     if (userCount > 0) {
       return generateUniqueUsername(generateUsername(proposedName));
@@ -28,7 +26,7 @@ const generateUniqueUsername = async (proposedName) => {
 exports.generateUniqueUsername = generateUniqueUsername;
 
 exports.modifyOutputData = (existingUser) => ({
-  id: existingUser.id,
+  id: existingUser._id,
   email: existingUser.email,
   firstName: existingUser.firstName,
   lastName: existingUser.lastName,
@@ -41,7 +39,7 @@ exports.modifyOutputData = (existingUser) => ({
 });
 
 exports.userAttributes = () => [
-  'id',
+  '_id',
   'createdAt',
   'updatedAt',
   'role',
@@ -53,3 +51,8 @@ exports.userAttributes = () => [
   'status',
   'profilePicture',
 ];
+
+exports.generatePassword = async (password) => {
+  const bcrypt = require('bcryptjs');
+  return await bcrypt.hash(password, bcrypt.genSaltSync(8));
+};

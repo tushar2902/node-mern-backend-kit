@@ -1,8 +1,6 @@
-const sequelize = require('sequelize');
 const UserRepository = require('../../../../models/repositories/UserRepository');
 const SubAdminRepository = require('../../../../models/repositories/SubAdminRepository');
 
-const db = require('../../../../models');
 const {
   usersRoles,
   resCode,
@@ -11,7 +9,6 @@ const {
   defaultStatus,
   errorMessage,
 } = require('../../../../config/options');
-const { Op } = sequelize;
 
 exports.postCreateAdmin = async (req, res) => {
   try {
@@ -49,27 +46,18 @@ exports.getAdminListing = async (req, res) => {
       where: {
         role: usersRoles.ADMIN,
         ...(search && {
-          [Op.or]: [
-            sequelize.where(
-              sequelize.fn(
-                'concat',
-                sequelize.col('firstName'),
-                ' ',
-                sequelize.col('lastName')
-              ),
-              {
-                [Op.iLike]: `%${search}%`,
-              }
-            ),
-            { email: { [Op.iLike]: `%${search}%` } },
+          $or: [
+            { firstName: { $regex: search, $options: 'i' } },
+            { lastName: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } },
           ],
         }),
-        status: { [Op.not]: [defaultStatus.DELETED] },
+        status: { $nin: [defaultStatus.DELETED] },
       },
-      attributes: ['id', 'firstName', 'lastName', 'email', 'status'],
-      order: [order],
-      offset: start,
+      select: 'id firstName lastName email status',
       limit,
+      offset: start,
+      sort: { [order[0]]: order[1] === 'DESC' ? -1 : 1 },
     };
     const existingUser = await UserRepository.findAndCountAll(query);
     return res
@@ -92,11 +80,11 @@ exports.adminChangeStatus = async (req, res) => {
   try {
     const query = {
       where: {
-        id: req.params.id,
+        _id: req.params.id,
         role: usersRoles.ADMIN,
-        status: { [Op.not]: [defaultStatus.DELETED] },
+        status: { $nin: [defaultStatus.DELETED] },
       },
-      attributes: ['id', 'status'],
+      select: '_id status',
     };
     const existingUser = await UserRepository.getUser(query);
     if (!existingUser) {
@@ -132,11 +120,11 @@ exports.deleteAdmin = async (req, res) => {
   try {
     const query = {
       where: {
-        id: req.params.id,
+        _id: req.params.id,
         role: usersRoles.ADMIN,
-        status: { [Op.not]: [defaultStatus.DELETED] },
+        status: { $nin: [defaultStatus.DELETED] },
       },
-      attributes: ['id', 'status'],
+      select: '_id status',
     };
     const existingUser = await UserRepository.getUser(query);
     if (!existingUser) {
@@ -174,19 +162,11 @@ exports.getAdmin = async (req, res) => {
   try {
     const query = {
       where: {
-        id: req.params.id,
+        _id: req.params.id,
         role: usersRoles.ADMIN,
-        status: { [Op.not]: [defaultStatus.DELETED] },
+        status: { $nin: [defaultStatus.DELETED] },
       },
-      attributes: ['id', 'firstName', 'lastName', 'email'],
-      include: [
-        {
-          model: db.AccessManagement,
-          as: 'accessManagement',
-          attributes: ['id', 'type', 'add', 'view', 'edit', 'remove'],
-          required: false,
-        },
-      ],
+      select: '_id firstName lastName email',
     };
     const payloadUser = await UserRepository.getUser(query);
     if (!payloadUser) {
@@ -218,19 +198,11 @@ exports.putUpdateAdmin = async (req, res) => {
   try {
     const query = {
       where: {
-        id: req.params.id,
+        _id: req.params.id,
         role: usersRoles.ADMIN,
-        status: { [Op.not]: [defaultStatus.DELETED] },
+        status: { $nin: [defaultStatus.DELETED] },
       },
-      attributes: ['id', 'firstName', 'lastName', 'email'],
-      include: [
-        {
-          model: db.AccessManagement,
-          as: 'accessManagement',
-          attributes: ['id', 'type', 'add', 'view', 'edit', 'remove'],
-          required: false,
-        },
-      ],
+      select: '_id firstName lastName email',
     };
     const existingAdmin = await SubAdminRepository.updateAdmin(req.body, query);
     if (existingAdmin.success) {
@@ -261,11 +233,11 @@ exports.changePassword = async (req, res) => {
   try {
     const query = {
       where: {
-        id: req.params.id,
+        _id: req.params.id,
         role: usersRoles.ADMIN,
-        status: { [Op.not]: [defaultStatus.DELETED] },
+        status: { $nin: [defaultStatus.DELETED] },
       },
-      attributes: ['id', 'password'],
+      select: '_id password',
     };
     const changePasswordResponse = await SubAdminRepository.changePassword(
       req.body,
@@ -298,11 +270,11 @@ exports.putUpdateProfile = async (req, res) => {
   try {
     const query = {
       where: {
-        id: req.user.id,
+        _id: req.user.id,
         role: usersRoles.ADMIN,
         status: defaultStatus.ACTIVE,
       },
-      attributes: ['id', 'firstName', 'lastName', 'profilePicture'],
+      select: '_id firstName lastName profilePicture',
     };
     const existingAdmin = await UserRepository.getUser(query);
 

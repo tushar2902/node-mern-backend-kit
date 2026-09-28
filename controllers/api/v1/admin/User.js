@@ -1,4 +1,3 @@
-const { AccessManagement } = require('../../../../models');
 const UserRepository = require('../../../../models/repositories/UserRepository');
 const {
   usersRoles,
@@ -7,6 +6,7 @@ const {
   errorTypes,
   defaultStatus,
   errorMessage,
+  successMessage,
 } = require('../../../../config/options');
 const UserHelper = require('../../../../models/helpers/UserHelper');
 
@@ -49,8 +49,8 @@ exports.userUpdate = async (req, res) => {
   try {
     const query = {
       where: {
-        id: req.user.id,
-        role: usersRoles.getAdminArray(),
+        _id: req.user.id,
+        role: { $in: usersRoles.getAdminArray() },
       },
     };
     const payloadUser = await UserRepository.updateUser(query, req.body);
@@ -61,7 +61,7 @@ exports.userUpdate = async (req, res) => {
         .json(genRes(resCode.HTTP_BAD_REQUEST, { message }));
     }
     const message = successMessage.UPDATE_SUCCESS_MESSAGE('Profile');
-    const outputData = UserRepository.modifyOutputData(payloadUser.data);
+    const outputData = UserHelper.modifyOutputData(payloadUser.data);
     return res
       .status(resCode.HTTP_OK)
       .json(genRes(resCode.HTTP_OK, { message, data: outputData }));
@@ -84,38 +84,12 @@ exports.getUserProfile = async (req, res) => {
     const { id } = req.user;
     const query = {
       where: {
-        id,
+        _id: id,
         status: defaultStatus.ACTIVE,
-        role: usersRoles.getAdminArray(),
+        role: { $in: usersRoles.getAdminArray() },
       },
-      attributes: [
-        'id',
-        'firstName',
-        'lastName',
-        'countryCode',
-        'mobileNumber',
-        'email',
-        'profilePicture',
-        'status',
-        'role',
-      ],
-      include: [
-        {
-          model: AccessManagement,
-          as: 'accessManagement',
-          attributes: [
-            'id',
-            'type',
-            'view',
-            'add',
-            'edit',
-            'remove',
-            'status',
-            'userId',
-          ],
-          required: false,
-        },
-      ],
+      select:
+        '_id firstName lastName countryCode mobileNumber email profilePicture status role',
     };
     const existingUser = await UserRepository.getUser(query);
     if (!existingUser) {
