@@ -381,7 +381,11 @@ exports.bulkCreate = async (users = []) => {
         isFromAdmin: true,
       };
       const parseNumberData = parseMobileNumber(`+${user.Mobile.toString()}`);
-      if (parseNumberData && parseNumberData.possible && parseNumberData.valid) {
+      if (
+        parseNumberData &&
+        parseNumberData.possible &&
+        parseNumberData.valid
+      ) {
         payload.mobileNumber = parseNumberData.number.significant;
         payload.countryCode = parseNumberData.countryCode.toString();
       }
