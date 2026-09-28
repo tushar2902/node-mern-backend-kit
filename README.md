@@ -1,4 +1,4 @@
-# Codemate Backend Core Service
+# Backend Core Service
 
 A production-ready **Node.js + Express** REST API backend using **MongoDB** (via Mongoose) as the database. It includes JWT-based authentication, role-based access control, AWS S3 file uploads, Swagger API documentation, and multi-environment configuration.
 
